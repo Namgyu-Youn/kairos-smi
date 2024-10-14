@@ -32,15 +32,14 @@ if hosts == []: # host = empty : json file에서 입력받은 정보 없음
 
 for host in hosts:
     try:
-        sp_host = host.split(':') # <host>@<ip>:<port>)
+        sp_host = host.split(':') # <host>@<ip>:<port>
         ep, port = sp_host # ep, port = ip, port
     except KeyError:
         ep, port = host, 22 # port가 지정x -> 22로 기본 설정
 
     os.system('ssh-copy-id {} -p {}'.format(ep, port))
 
-'''
-[Ln] 48 ~ 51
+''' [Ln] 47 ~ 50
 - subprocess.Popen : SSH 명령을 실행함
 - 명령어 : ssh -p <port> <ip> 'cat ~/.ssh/authorized_keys'
 - cat ~ : RSA key path
@@ -57,8 +56,7 @@ for host in hosts:
         raise Exception('SSH connection refused. {}'.format(error))
         # print (sys.stderr, "ERROR: %s" % error)
 
- '''
- [Ln 67 ~ 71]
+ ''' [Ln 65 ~ 69]
  - subprocess.check_output : local에서 RSA public key를 찾음.
  - key path ex : '{}/.ssh/id_rsa.pub' (~/.ssh/id_rsa.pub)
 - 'cat' : UNIX에서 파일 내용을 출력하는 명령어
