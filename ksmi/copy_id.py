@@ -18,39 +18,55 @@ if args.new_id:
 hosts = []
 if args.config is not None:
     with open(args.config, 'r') as f:
-        conf = json.load(f)
+        conf = json.load(f) # Input file : dict(<host>@<ip>:<port>)
 
     hosts.extend(conf['hosts'])
 
 if args.server is not None:
     hosts.append(args.server)
 
-if hosts == []:
+if hosts == []: # host = empty : json file에서 입력받은 정보 없음
     print("NO HOST TO COPY ID")
     exit(-1)
 
 
 for host in hosts:
     try:
-        sp_host = host.split(':')
-        ep, port = sp_host
+        sp_host = host.split(':') # <host>@<ip>:<port>)
+        ep, port = sp_host # ep, port = ip, port
     except KeyError:
-        ep, port = host, 22
+        ep, port = host, 22 # port가 지정x -> 22로 기본 설정
 
     os.system('ssh-copy-id {} -p {}'.format(ep, port))
 
+'''
+[Ln] 48 ~ 51
+- subprocess.Popen : SSH 명령을 실행함
+- 명령어 : ssh -p <port> <ip> 'cat ~/.ssh/authorized_keys'
+- cat ~ : RSA key path
+'''
     ssh = subprocess.Popen(["ssh", "-p", port, ep, 'cat ~/.ssh/authorized_keys'],
                     shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
+
     result = ssh.stdout.readlines()
-    if result == []:
+
+    if result == []: # 불러온 SSH 없음 -> error
         error = ssh.stderr.readlines()[0].decode('utf-8')
         raise Exception('SSH connection refused. {}'.format(error))
         # print (sys.stderr, "ERROR: %s" % error)
+
+ '''
+ [Ln 67 ~ 71]
+ - subprocess.check_output : local에서 RSA public key를 찾음.
+ - key path ex : '{}/.ssh/id_rsa.pub' (~/.ssh/id_rsa.pub)
+- 'cat' : UNIX에서 파일 내용을 출력하는 명령어
+- os.environ['HOME'] : 현재 경로의 home을 불러온다. (ex. /home/.ssh/id_rsa.pub)
+ '''
     else:
         my_key = subprocess.check_output(['cat', '{}/.ssh/id_rsa.pub'.format(os.environ['HOME'])], universal_newlines=True)
-        my_key = my_key.split(' ')
+        my_key = my_key.split(' ') # RSA public key를 blank(' ')를 기준으로 구분해야함.
         for i, key in enumerate(result):
             result[i] = key.decode('utf-8').split(' ')[1]
 
