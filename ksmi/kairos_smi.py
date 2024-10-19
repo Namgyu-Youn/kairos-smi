@@ -8,14 +8,14 @@ import logging
 
 logging.basicConfig(level=logging.ERROR)
 
-''' [Ln 21 ~ 22]
+''' [Ln 20 ~ 21]
 About QUERY_GPU
-- timestamp(정보가 수집된 시간), gpu_unid(GPU ID), count(N of GPU), name(GPU 이름)
-- pstate(GPU 상태), temperature.gpu(GPU 온도)
-- utilization.gpu(GPU 사용률), memory.used(사용중인 메모리), memory.total(전체 메모리)
+- timestamp, gpu_unid(GPU ID), count(The number of GPU), name(GPU name)
+- pstate(GPU status), temperature.gpu(GPU temperature)
+- utilization.gpu(GPU Utilization rate), memory.used, memory.total
 
 About QUERY_APP
-- gpu_uuid(GPU ID), pid(프로세스 ID), process_name(프로세스 이름), used_memory(사용중인 메모리)
+- gpu_uuid(GPU ID), pid(Process ID), process_name(Process name), used_memory
 '''
 QUERY_GPU = "nvidia-smi --query-gpu=timestamp,gpu_uuid,count,name,pstate,temperature.gpu,utilization.gpu,memory.used,memory.total --format=csv,noheader"
 QUERY_APP = "nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader"
@@ -29,52 +29,51 @@ def ssh_remote_command(entrypoint, command, timeout=1):
     try:
         host, port = entrypoint.split(':') # <host>@<ip>:<port>
     except ValueError:
-        host, port = entrypoint, '22' # Port 지정이 없다면, default=22로 설정
+        host, port = entrypoint, '22' # The default value of the port is 22.
 
-''' [Ln 41 ~ 56]
-- subprocess.Popen : Subprocess를 만들고 명령어를 실행함. (여기서는 SSH 명령어)
-- host, port, command = <host>, <Port>, "Command(SSH에서 실행할 명령)"
-- stdout : 명령 실행 후 출력을 pipe(stdout)에 저장함.
-- stderr : 명령 실행 중 error 발생 시, 해당 내용을 pipe(stderr)에 저장함.
-- communicate() : 명령어의 출력(stdout, stderr)를 각각 err, out에 저장함.
+''' [Ln 41 ~ 55]
+- subprocess.Popen : Create Subprocess and run the SSH command.
+- host, port, command = <host>, <Port>, "Command(for SSH)"
+- stdout : Save the output to pipe (stdout) after command execution.
+- stderr : If an error occurs while executing a command, it is stored in the pipe (stderr).
+- communicate() : Save the output of the command (stdout, stderr) in err, out respectively.
 '''
     ssh = subprocess.Popen(['ssh', host, '-p', port, command],
                        shell=False,
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE)
     try:
-        out, err = ssh.communicate(timeout=timeout) # 1초 안에 실행x -> error
+        out, err = ssh.communicate(timeout=timeout)
         #print(out, err)
-        if err != b'': # err 비어있음 -> sucess(모두 실행된 것)
+        if err != b'': # If error is empty : Everything works!
             return {'status': 'Error', 'entry': entrypoint, 'command': command, 'data': postprocessing(err)}
         return {'status': 'Success', 'entry': entrypoint, 'command': command, 'data': postprocessing(out)}
 
     except subprocess.TimeoutExpired:
         ssh.kill()
         out, err = ssh.communicate()
-        #print(out, err)
         return {'status': 'Timeout', 'entry': entrypoint, 'command': command, 'data': postprocessing(err)}
 
 
 
 def get_gpus_status(hosts, timeout=1):
 
-    result = {} # host의 결과값
-    que = Queue(maxsize=100) # maxsize : N(연결되는 서버)
-    procs = [] # 실행되는 모든 process를 저장함 (번호표 역할)
+    result = {} # The result of the host
+    que = Queue(maxsize=100) # maxsize = The number of connected servers.
+    procs = [] # Save all runing process (que)
 
-# 각 host에서 QUERY_GPU/GUERY_APP을 실행하고 그 결과를 que에 입력하는 함수
+# Function that runs QUERY_GPU/GUERY_APP on each host and enters the result into the que.
     def run_command_and_inque(q, host, query):
         result = ssh_remote_command(host, query, timeout=timeout)
         q.put(result)
 
-    for host in hosts: # 각 호스트를 순회함
+    for host in hosts: # Go round all of the hosts.
         for query in [QUERY_GPU, QUERY_APP]:
             proc = Process(target=run_command_and_inque, args=(que, host, query))
             proc.start()
             procs.append(proc)
 
-    for proc in procs: # Subprocess가 완전히 끝날 때까지 기다린다,
+    for proc in procs: # Await the completion of the subprocess.
         proc.join()
 
     while not que.empty():
@@ -100,8 +99,8 @@ def get_gpus_status(hosts, timeout=1):
 
 def display_gpu_status(hosts, data):
     for host in hosts:
-        gpu_stat = data[host].get('gpus') # gpu info
-        app_stat = data[host].get('apps') # app(process) info
+        gpu_stat = data[host].get('gpus') # GPU info
+        app_stat = data[host].get('apps') # APP(process) info
 
         # print gpu stat
         # if gpu stat is empty
@@ -126,11 +125,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
-''' [Ln ]
-- dict(<host>@<ip>:<port>) 정보를 가진 json 파일을 불러옴
--
 
-'''
 def main():
     args = get_args()
 
@@ -144,7 +139,7 @@ def main():
     HOSTS = conf['hosts']
 
     while(True):
-        result = get_gpus_status(HOSTS) # gpu info를 우선 불러옴
+        result = get_gpus_status(HOSTS) # Load GPU info first.
 
         if args.loop:
             os.system('cls' if os.name == 'nt' else "printf '\033c'")
